@@ -1,0 +1,162 @@
+(*DTHA: Digital Twin-assisted Handover Authentication in 5G and Beyond*)
+type z.
+type G.
+const P : G.
+const Enc : bitstring.
+const Int : bitstring.
+free public_wireless_channel : channel. 
+
+fun mul(z, z) : z.
+fun add(z, z) : z.
+fun point_mul(G, z) : G.
+fun H0(G, bitstring) : z.
+fun H1(bitstring, bitstring) : z.
+fun H2(G, bitstring) : bitstring.
+fun H5( G, G) : bitstring. 
+fun H6(bitstring, bitstring) : bitstring.
+fun H7(G, bitstring, bitstring) : z.
+fun sign(z, z) : z.
+fun enc(bitstring, bitstring) : bitstring.
+reduc forall x : bitstring,  y : bitstring; denc(enc(x, y), x) = y.
+fun con1(z, z) : z.
+fun con2(G,z, bitstring) : bitstring.
+fun con3(bitstring, bitstring) : bitstring.
+fun con4(bitstring, bitstring, bitstring) : bitstring.
+fun con5(G, bitstring) : bitstring.
+fun con6(z, bitstring) : bitstring.
+fun KDF(bitstring, bitstring) : bitstring.
+fun oplus(z, bitstring) : bitstring.
+reduc forall m : z,  n : bitstring; doplus(oplus(m, n), n) = m. 
+
+
+reduc forall a : G, b : z, c : bitstring; dcon1(con2(a, b, c)) = a.
+reduc forall a : G, b : z, c : bitstring; dcon2(con2(a, b, c)) = b.
+reduc forall a : G, b : z, c : bitstring; dcon3(con2(a, b, c)) = c.
+
+reduc forall a : bitstring, b : bitstring; dcon4(con3(a, b)) = a.
+reduc forall a : bitstring, b : bitstring; dcon5(con3(a, b)) = b. 
+
+fun sign1(z, z, z): z.
+reduc forall x: z, y: z, z1 : z,  x1 : G, x2 : G; checksign1(sign1(x, y, z1), x1, x2) = x.
+
+
+free Msg_V, Msg_gNB : bitstring [private].
+event termV(bitstring, bitstring, bitstring).
+event acceptsgNB(bitstring, bitstring, bitstring).
+event acceptsV(bitstring, bitstring, bitstring).
+event termgNB(bitstring, bitstring, bitstring).
+query attacker(Msg_V).
+query attacker(Msg_gNB).
+query x : bitstring, y : bitstring, z : bitstring;
+inj-event(termV(x, y, z)) ==> inj-event(acceptsgNB(x, y, z)).
+query  x : bitstring, y : bitstring, z : bitstring;
+inj-event(termgNB(x, y, z))==>inj-event(acceptsV(x, y, z)).
+query x : bitstring, y : bitstring, k : bitstring, k' : bitstring;
+event(termgNB(x, y, k)) && event(acceptsV(x, y, k')) ==> k = k'.
+
+
+let V(k : bitstring, a : z, sk_i : z, GUTI_i : bitstring, ID_j : bitstring) =
+  in (public_wireless_channel, (xC_g : G, xID_g : bitstring, xh_6 : bitstring, xTS_3 : bitstring));
+  let k3 = mul(sk_i, a) in
+  let K_i = point_mul(xC_g, k3) in
+  let k_g = H2(K_i, con3(GUTI_i, xID_g)) in 
+  let TID_i = H6(k_g, con3(GUTI_i, xID_g)) in
+  let TCK_i = KDF(k_g, Enc) in
+  let TIK_i = KDF(k_g, Int) in
+  let h_5 = H1(TIK_i, con3(TID_i, ID_j)) in
+  let MAC_3 = oplus(h_5, xh_6) in
+  let m2 = con3(xID_g, xTS_3) in
+  let m3 = con6(h_5, m2) in
+  let m4 = con5(xC_g,m3) in
+  if MAC_3 =  H6(k, m4)  then
+  event termV(GUTI_i, xID_g, (xC_g, h_5, TID_i));
+      new TS_4 : bitstring;
+      let m1 = con3(TID_i, TS_4) in
+      let MAC_4 = H6(TIK_i, m1) in
+      event acceptsV(GUTI_i, xID_g, (k_g, MAC_4));
+      out(public_wireless_channel, (TID_i, TS_4, MAC_4));
+      out(public_wireless_channel, enc(k_g, Msg_V)).
+
+
+
+let DT(R : G, k : bitstring, pk_g : G, sk_j : z, pk_j : G,
+  pk_m : G, A : G, delta : z,
+  GUTI_i : bitstring, ID_g : bitstring, ID_j : bitstring) =
+  new b : z;                               
+  let B = point_mul(P, b) in 
+  new TS_1 : bitstring;
+  let h3 = H0(A, TS_1) in
+  let h4 = H0(B, ID_j) in
+  let m1 = con1(h3, h4) in
+  let lambda = sign1(m1, sk_j, delta) in
+  out(public_wireless_channel, (GUTI_i, ID_j, lambda, A, B, R, 
+	TS_1));
+  in(public_wireless_channel, (xID_g : bitstring, xC_g : G, xh_5 : z, 
+	xMAC_2 : bitstring, xTS_2 : bitstring));
+  let k1 = mul(xh_5, b) in
+  let k2 = point_mul(xC_g, k1) in
+  if xMAC_2 = H5(k2, xC_g) then
+    new TS_3 : bitstring;
+    let m2 = con3(xID_g, TS_3) in
+    let m3 = con2(xC_g, xh_5, m2) in
+    let MAC_3 = H6(k, m3) in
+    let h6 = oplus(xh_5, MAC_3) in
+    out(public_wireless_channel, (xC_g, xID_g, h6, TS_3)).
+
+
+
+let gNB(sk_g : z, pk_g : G, pk_a : G, ID_g : bitstring, pk_j : G) =
+  in
+  (public_wireless_channel, (xGUTI_i : bitstring, xID_j : bitstring, 
+    xlambda : z, xA : G, xB : G, xR : G, xTS_1 : bitstring));
+  let xh1 = H0(xR, xGUTI_i) in
+  let xh2 = H0(pk_j, xID_j) in
+  let xh3 = H0(xA, xTS_1) in
+  let xh4 = H0(xB, xID_j) in
+  let xm3 = con1(con1(xh1, xh2), con1(xh3, xh4)) in
+  let (= xm3) = checksign1(xlambda, pk_a, pk_j) in
+  new c_g : z;
+  let C_g = point_mul(P, c_g) in
+  let K_i = point_mul(xA, mul(c_g, sk_g)) in
+  let k_g = H2(K_i, con3(xGUTI_i, ID_g)) in
+  let TID = H6(k_g, con3(xGUTI_i, ID_g)) in
+  let h5 = H7(K_i, k_g, con3(TID, xID_j)) in
+  let k1 = mul(sk_g, h5) in
+  let k3 = point_mul(xB, k1) in
+  let MAC_2 = H5(k3, C_g) in
+  event acceptsgNB(xGUTI_i, ID_g, (xID_j, xA, xB, xR, C_g, h5,
+				 MAC_2));
+  out(public_wireless_channel, (ID_g, C_g, h5, MAC_2));
+  in (public_wireless_channel, (xTID : bitstring, xTS_4 : bitstring, 
+       xMAC_4 : bitstring));
+  let TIK = KDF(k_g, Int) in
+  if xMAC_4 = H6(TIK, con3(xTID, xTS_4)) then
+    event termgNB(xGUTI_i, ID_g, (k_g, xMAC_4));
+    out(public_wireless_channel, enc(k_g, Msg_gNB)).
+
+process
+  new b : z;
+  let B = point_mul(P, b) in
+  new sk_g : z;
+  let pk_g = point_mul(P, sk_g) in
+  new sk_a : z;
+  let pk_a = point_mul(P, sk_a) in
+  new a : z;
+  let A = point_mul(pk_a, a) in
+  new k : bitstring;
+  new sk_j : z;
+  let pk_j = point_mul(P, sk_j) in
+  new sk_i : z;
+  let pk_i = point_mul(P, sk_i) in
+  new r : z;
+  let R = point_mul(P, r) in
+  new ID_g : bitstring;
+  new ID_j : bitstring;
+  new GUTI_i : bitstring;
+  let h1 = H0(R, GUTI_i) in
+  let h2 = H0(pk_j, ID_j) in
+  let m1 = con1(h1, h2) in
+  let delta = sign(sk_a, m1) in
+  ((!gNB(sk_g, pk_g, pk_a, ID_g, pk_j)) |
+  (!DT( R, k, pk_g, sk_j, pk_j, pk_i, A, delta, GUTI_i, ID_g, ID_j)) |
+  (!V(k, a, sk_i, GUTI_i, ID_j)))
